@@ -1,100 +1,49 @@
-#include <iostream>
-#include <string>
-#include <vector>
-using namespace std;
-
-enum class CoachType { SLEEPER, COMPARTMENT, SEATER };
-enum class TicketStatus { AVAILABLE, BLOCKED, SOLD, RETURNED };
-
-struct Passenger {
-    string name;
-    string socialSecurityCode;
-};
-
-struct Ticket {
-    int id;
-    string destination;
-    string originStation;
-    CoachType coachType;
-    double cost;
-    TicketStatus status;
-};
-
-class RailwayConnectionDatabase {
-public:
-    vector<Ticket> tickets;
-
-    void addTicket(const Ticket& t) { tickets.push_back(t); }
-
-    void search(const string& dest) {
-        cout << "[DB] Searching tickets for destination: " << dest << endl;
-        for (auto& t : tickets) {
-            if (t.destination == dest && t.status == TicketStatus::AVAILABLE) {
-                cout << " Ticket #" << t.id
-                    << " from " << t.originStation
-                    << " to " << t.destination
-                    << " | Price: " << t.cost << endl;
-            }
-        }
-    }
-
-    void updateStatus(int ticketId, TicketStatus newStatus) {
-        for (auto& t : tickets) {
-            if (t.id == ticketId) {
-                t.status = newStatus;
-                cout << "[DB] Ticket " << ticketId << " updated to new status." << endl;
-                return;
-            }
-        }
-    }
-};
-
-class Cashier {
-public:
-    string id;
-    RailwayConnectionDatabase* db;
-
-    void search_tickets(const string& dest) {
-        cout << "[Cashier] Checking availability for: " << dest << endl;
-        db->search(dest);
-    }
-
-    void block_ticket(int ticketId) {
-        cout << "[Cashier] Blocking ticket " << ticketId << endl;
-        db->updateStatus(ticketId, TicketStatus::BLOCKED);
-    }
-
-    void sell_ticket(int ticketId, Passenger p) {
-        cout << "[Cashier] Selling ticket " << ticketId << " to passenger: " << p.name << endl;
-        db->updateStatus(ticketId, TicketStatus::SOLD);
-    }
-
-    void return_ticket(int ticketId) {
-        cout << "[Cashier] Returning ticket " << ticketId << "..." << endl;
-        db->updateStatus(ticketId, TicketStatus::RETURNED);
-        cout << "[Cashier] Refund processed (minus penalty)" << endl;
-    }
-
-    void generate_report() {
-        cout << "[Cashier] Generating daily report..." << endl;
-    }
-};
+// main.cpp
+#include "RailwayConnectionDatabase.hpp"
+#include "RailwayConnectionDatabase.cpp" // NEW: Include implementation
+#include "Cashier.hpp"
+#include "Cashier.cpp" // NEW: Include implementation
+#include "ConsoleUI.cpp" // NEW: Include implementation
+#include "SystemClock.hpp" // NEW: Include declaration
+#include "Types.hpp" // NEW: Include types
 
 int main() {
+    // Necessary Includes:
+    // RailwayConnectionDatabase.cpp, Cashier.cpp, ConsoleUI.cpp, SystemClock.hpp, Types.hpp
+    
+    // --- SETUP ---
     RailwayConnectionDatabase db;
-
-    // Add sample tickets
+    // Note: Ticket struct now comes from Types.hpp
     db.addTicket({ 1, "Tallinn", "Tartu", CoachType::SLEEPER, 50.0, TicketStatus::AVAILABLE });
     db.addTicket({ 2, "Tartu", "Tallinn", CoachType::SEATER, 30.0, TicketStatus::AVAILABLE });
+    db.addTicket({ 3, "Parnu", "Viljandi", CoachType::COMPARTMENT, 80.0, TicketStatus::AVAILABLE });
 
-    Cashier cashier{ "C1", &db };
+
+    SystemClock clock;
+    Cashier cashier("C1", &db, &clock);
     Passenger passenger{ "Kamil", "123456789" };
 
-    // User Story: Cashier sells a blocked ticket
-    cashier.search_tickets("Tallinn");
-    cashier.block_ticket(1);
-    cashier.sell_ticket(1, passenger);
-    system("pause");
+    // --- SCENARIO EXECUTION ---
 
+    // 1. Search and Block
+    cashier.searchTickets("Tallinn"); // Shows ticket #2
+    cashier.blockTicket(2); // Status: BLOCKED
+    
+    // 2. Invalid Sell attempt (Ticket #3 is AVAILABLE, not BLOCKED)
+    cashier.sellTicket(3, passenger); // Should fail validation
+
+    // 3. Successful Sell
+    cashier.sellTicket(2, passenger); // Status: SOLD (Valid, was BLOCKED)
+
+    // 4. Return Ticket (#2) with a future travel date (10 days from now)
+    // This will hit the 10% penalty logic (daysBefore >= 3)
+    std::time_t futureDate = std::time(nullptr) + 10 * 24 * 60 * 60; // 10 days from now
+    cashier.returnTicket(2, futureDate); // Status: RETURNED (Refund calculated)
+
+    // 5. Generate Report
+    cashier.generateReport();
+
+    system("pause");
+    
     return 0;
 }
