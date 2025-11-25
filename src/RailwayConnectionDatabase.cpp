@@ -1,6 +1,5 @@
 // RailwayConnectionDatabase.cpp
 #include "RailwayConnectionDatabase.hpp"
-#include <iostream>
 
 void RailwayConnectionDatabase::addTicket(const Ticket& t) {
     tickets.push_back(t);
@@ -15,7 +14,15 @@ Ticket* RailwayConnectionDatabase::getTicketById(int id) {
     return nullptr;
 }
 
-std::vector<Ticket> RailwayConnectionDatabase::search(const std::string& dest) {
+Ticket& RailwayConnectionDatabase::requireTicketById(int id) {
+    Ticket* ptr = getTicketById(id);
+    if (!ptr) {
+        throw TicketNotFoundException(id);
+    }
+    return *ptr;
+}
+
+std::vector<Ticket> RailwayConnectionDatabase::search(const std::string& dest) const {
     std::vector<Ticket> results;
     for (const auto& t : tickets) {
         if (t.destination == dest && t.status == TicketStatus::AVAILABLE) {
@@ -25,11 +32,7 @@ std::vector<Ticket> RailwayConnectionDatabase::search(const std::string& dest) {
     return results;
 }
 
-bool RailwayConnectionDatabase::updateTicketStatus(int id, TicketStatus newStatus) {
-    Ticket* t = getTicketById(id);
-    if (t) {
-        t->status = newStatus;
-        return true;
-    }
-    return false;
+void RailwayConnectionDatabase::updateTicketStatus(int id, TicketStatus newStatus) {
+    Ticket& t = requireTicketById(id);  // may throw TicketNotFoundException
+    t.status = newStatus;
 }

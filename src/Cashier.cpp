@@ -1,84 +1,107 @@
-// Cashier.cpp
 #include "Cashier.hpp"
 #include "ConsoleUI.hpp"
-#include <iostream>
-#include <ctime>
+#include "Exceptions.hpp"
 #include <cmath>
+#include <ctime>
 #include <string>
 
 Cashier::Cashier(const std::string& id, RailwayConnectionDatabase* db, IClock* clk)
     : Employee(id), db(db), clock(clk) {}
 
-// IMPLEMENTATION ADDED: searchTickets
+double Cashier::computePenaltyRate(int daysBefore) const {
+    if (daysBefore >= 30)       return 0.01; // 1%
+    else if (daysBefore >= 15)  return 0.05; // 5%
+    else if (daysBefore >= 3)   return 0.10; // 10%
+    else if (daysBefore >= 0)   return 0.30; // 30% on the day of travel
+    throw InvalidOperationException("Cannot return a ticket after departure time.");
+}
+
 void Cashier::searchTickets(const std::string& dest) {
+    if (dest.empty()) {
+        throw InvalidInputException("Destination must not be empty.");
+    }
+
     ConsoleUI::showMessage("[Cashier] Searching for available tickets to: " + dest);
     std::vector<Ticket> results = db->search(dest);
+
     if (results.empty()) {
-        ConsoleUI::showMessage("No available tickets found.");
+        ConsoleUI::showMessage("No AVAILABLE tickets found for destination: " + dest);
         return;
     }
+
+    ConsoleUI::showMessage("Found " + std::to_string(results.size()) + " ticket(s):");
     for (const auto& t : results) {
         ConsoleUI::showTicket(t);
     }
 }
 
-// IMPLEMENTATION ADDED: blockTicket
 bool Cashier::blockTicket(int ticketId) {
-    Ticket* t = db->getTicketById(ticketId);
-    if (!t || t->status != TicketStatus::AVAILABLE) {
-        ConsoleUI::showMessage("Cannot block ticket " + std::to_string(ticketId) + ". It's not AVAILABLE.");
-        return false;
+    if (ticketId <= 0) {
+        throw InvalidInputException("Ticket id must be a positive integer.");
     }
+
+    Ticket& t = db->requireTicketById(ticketId); // may throw TicketNotFoundException
+
+    if (t.status != TicketStatus::AVAILABLE) {
+        throw InvalidOperationException("Only AVAILABLE tickets can be blocked.");
+    }
+
     db->updateTicketStatus(ticketId, TicketStatus::BLOCKED);
-    ConsoleUI::showMessage("Ticket " + std::to_string(ticketId) + " BLOCKED.");
+    ConsoleUI::showMessage("Ticket #" + std::to_string(ticketId) + " has been BLOCKED.");
     return true;
 }
 
 bool Cashier::sellTicket(int ticketId, const Passenger& p) {
-    Ticket* t = db->getTicketById(ticketId);
-    if (!t || t->status != TicketStatus::BLOCKED) {
-        // Validation: Must be BLOCKED to sell
-        ConsoleUI::showMessage("Ticket must be BLOCKED before selling.");
-        return false;
+    if (ticketId <= 0) {
+        throw InvalidInputException("Ticket id must be a positive integer.");
+    }
+    if (p.name.empty() || p.socialSecurityCode.empty()) {
+        throw InvalidInputException("Passenger name and social security code must be provided.");
     }
 
-    db->updateTicketStatus(ticketId, TicketStatus::SOLD); // Use DB update
-    // t->status = TicketStatus::SOLD; // Removed direct access
+    Ticket& t = db->requireTicketById(ticketId); // may throw TicketNotFoundException
+
+    if (t.status != TicketStatus::BLOCKED) {
+        throw InvalidOperationException("Only BLOCKED tickets can be sold.");
+    }
+
+    db->updateTicketStatus(ticketId, TicketStatus::SOLD);
     soldTickets.push_back(ticketId);
-    ConsoleUI::showMessage("Ticket sold to: " + p.name);
+
+    ConsoleUI::showMessage("Ticket #" + std::to_string(ticketId) + " has been SOLD to " + p.name + ".");
     return true;
 }
 
 bool Cashier::returnTicket(int ticketId, std::time_t travelDate) {
-    Ticket* t = db->getTicketById(ticketId);
-    if (!t || t->status != TicketStatus::SOLD) {
-        // Validation: Must be SOLD to return
-        ConsoleUI::showMessage("Cannot return unsold ticket.");
-        return false;
+    if (ticketId <= 0) {
+        throw InvalidInputException("Ticket id must be a positive integer.");
+    }
+    if (travelDate == 0) {
+        throw InvalidInputException("Travel date must be provided.");
+    }
+
+    Ticket& t = db->requireTicketById(ticketId); // may throw TicketNotFoundException
+
+    if (t.status != TicketStatus::SOLD) {
+        throw InvalidOperationException("Only SOLD tickets can be returned.");
     }
 
     std::time_t now = clock->now();
-    // Calculate days difference:
-    // (std::difftime returns a double in seconds) / (seconds in a day)
-    double secondsBefore = std::difftime(travelDate, now);
-    double daysBefore = secondsBefore / (60.0 * 60.0 * 24.0);
-    double penaltyRate = 0.0;
+    long secondsDiff = static_cast<long>(difftime(travelDate, now));
+    int daysBefore = static_cast<int>(std::floor(secondsDiff / (60.0 * 60.0 * 24.0)));
 
-    // Reporting and Penalties: Based on days before travel
-    if (daysBefore < 0) { // Safety check for past travel date
-        ConsoleUI::showMessage("Cannot return ticket for travel date in the past.");
-        return false;
-    } else if (daysBefore >= 30) penaltyRate = 0.01;
-    else if (daysBefore >= 15) penaltyRate = 0.05;
-    else if (daysBefore >= 3) penaltyRate = 0.10;
-    else penaltyRate = 0.30;
+    double penaltyRate = computePenaltyRate(daysBefore);
+    double refund = t.cost * (1.0 - penaltyRate);
 
-    double refund = t->cost * (1.0 - penaltyRate);
-    db->updateTicketStatus(ticketId, TicketStatus::RETURNED); // Use DB update
-    // t->status = TicketStatus::RETURNED; // Removed direct access
+    db->updateTicketStatus(ticketId, TicketStatus::RETURNED);
     returnedTickets.push_back(ticketId);
 
-    ConsoleUI::showMessage("Refund: " + std::to_string(refund) + " (Penalty Rate: " + std::to_string(penaltyRate * 100) + "%)");
+    ConsoleUI::showMessage(
+        "Ticket #" + std::to_string(ticketId) +
+        " returned. Refund: " + std::to_string(refund) +
+        " (Penalty: " + std::to_string(penaltyRate * 100.0) + "%)."
+    );
+
     return true;
 }
 

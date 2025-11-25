@@ -1,4 +1,3 @@
-// Types.hpp
 #pragma once
 #include <string>
 
@@ -11,10 +10,10 @@ struct Passenger {
 };
 
 struct Ticket {
-    int id;
+    int id{};
     std::string destination;
     std::string originStation;
-    CoachType coachType;
-    double cost;
-    TicketStatus status;
+    CoachType coachType{ CoachType::SEATER };
+    double cost{ 0.0 };
+    TicketStatus status{ TicketStatus::AVAILABLE };
 };

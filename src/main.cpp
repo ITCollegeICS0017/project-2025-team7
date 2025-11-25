@@ -1,49 +1,61 @@
-// main.cpp
+#include "Types.hpp"
+#include "Employee.hpp"
+#include "IClock.hpp"
+#include "SystemClock.hpp"
+#include "Exceptions.hpp"
 #include "RailwayConnectionDatabase.hpp"
-#include "RailwayConnectionDatabase.cpp" // NEW: Include implementation
 #include "Cashier.hpp"
-#include "Cashier.cpp" // NEW: Include implementation
-#include "ConsoleUI.cpp" // NEW: Include implementation
-#include "SystemClock.hpp" // NEW: Include declaration
-#include "Types.hpp" // NEW: Include types
+#include "ConsoleUI.hpp"
+
+#include <iostream>
+#include <limits>
 
 int main() {
-    // Necessary Includes:
-    // RailwayConnectionDatabase.cpp, Cashier.cpp, ConsoleUI.cpp, SystemClock.hpp, Types.hpp
-    
-    // --- SETUP ---
     RailwayConnectionDatabase db;
-    // Note: Ticket struct now comes from Types.hpp
-    db.addTicket({ 1, "Tallinn", "Tartu", CoachType::SLEEPER, 50.0, TicketStatus::AVAILABLE });
-    db.addTicket({ 2, "Tartu", "Tallinn", CoachType::SEATER, 30.0, TicketStatus::AVAILABLE });
-    db.addTicket({ 3, "Parnu", "Viljandi", CoachType::COMPARTMENT, 80.0, TicketStatus::AVAILABLE });
-
-
     SystemClock clock;
-    Cashier cashier("C1", &db, &clock);
-    Passenger passenger{ "Kamil", "123456789" };
+    Cashier cashier("C001", &db, &clock);
 
-    // --- SCENARIO EXECUTION ---
+    Ticket t1{ 1, "Tallinn",  "Tartu",  CoachType::SEATER,      25.0, TicketStatus::AVAILABLE };
+    Ticket t2{ 2, "Tallinn",  "Narva",  CoachType::COMPARTMENT, 40.0, TicketStatus::AVAILABLE };
+    Ticket t3{ 3, "Viljandi", "Tallinn",CoachType::SLEEPER,     60.0, TicketStatus::AVAILABLE };
 
-    // 1. Search and Block
-    cashier.searchTickets("Tallinn"); // Shows ticket #2
-    cashier.blockTicket(2); // Status: BLOCKED
-    
-    // 2. Invalid Sell attempt (Ticket #3 is AVAILABLE, not BLOCKED)
-    cashier.sellTicket(3, passenger); // Should fail validation
+    db.addTicket(t1);
+    db.addTicket(t2);
+    db.addTicket(t3);
 
-    // 3. Successful Sell
-    cashier.sellTicket(2, passenger); // Status: SOLD (Valid, was BLOCKED)
+    ConsoleUI::showMessage("Release 3 Demo: Validation & Exceptions");
 
-    // 4. Return Ticket (#2) with a future travel date (10 days from now)
-    // This will hit the 10% penalty logic (daysBefore >= 3)
-    std::time_t futureDate = std::time(nullptr) + 10 * 24 * 60 * 60; // 10 days from now
-    cashier.returnTicket(2, futureDate); // Status: RETURNED (Refund calculated)
+    try {
+        // 1. Normal search scenario.
+        cashier.searchTickets("Tallinn");
 
-    // 5. Generate Report
+        // 2. Block and sell ticket #2.
+        cashier.blockTicket(2);
+
+        Passenger passenger{ "Alice Example", "123456-7890" };
+        cashier.sellTicket(2, passenger);
+
+        // 3. Process a normal return for ticket #2 ten days before travel.
+        std::time_t travelDate = clock.now() + 10 * 24 * 60 * 60; // 10 days in future
+        cashier.returnTicket(2, travelDate);
+
+        // 4. Try an invalid return to demonstrate error handling.
+        //    Ticket #3 is still AVAILABLE, so returning it should fail.
+        ConsoleUI::showMessage("\n--- Attempting invalid return of AVAILABLE ticket (#3) ---");
+        cashier.returnTicket(3, travelDate); // Will throw
+
+    }
+    catch (const TicketException& ex) {
+        ConsoleUI::showError(ex.what());
+    }
+    catch (const std::exception& ex) {
+        ConsoleUI::showError(std::string("Unexpected error: ") + ex.what());
+    }
+
+    // 5. Daily report.
     cashier.generateReport();
 
-    system("pause");
-    
+    ConsoleUI::showMessage("Press ENTER to exit.");
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     return 0;
 }

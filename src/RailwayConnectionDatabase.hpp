@@ -1,6 +1,7 @@
 // RailwayConnectionDatabase.hpp
 #pragma once
-#include "Types.hpp" // NEW: Include definitions
+#include "Types.hpp"
+#include "Exceptions.hpp"
 #include <vector>
 #include <string>
 
@@ -10,7 +11,12 @@ private:
 
 public:
     void addTicket(const Ticket& t);
+
     Ticket* getTicketById(int id);
-    std::vector<Ticket> search(const std::string& dest); // Returns list of matching tickets
-    bool updateTicketStatus(int id, TicketStatus newStatus);
+
+    Ticket& requireTicketById(int id);
+
+    std::vector<Ticket> search(const std::string& dest) const;
+
+    void updateTicketStatus(int id, TicketStatus newStatus);
 };

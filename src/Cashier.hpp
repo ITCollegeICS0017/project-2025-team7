@@ -1,8 +1,7 @@
-// Cashier.hpp
 #pragma once
 #include "Employee.hpp"
 #include "RailwayConnectionDatabase.hpp"
-#include "Types.hpp" // NEW: Include definitions for Passenger and Ticket
+#include "Types.hpp"
 #include "IClock.hpp"
 #include <vector>
 
@@ -12,6 +11,8 @@ private:
     IClock* clock;
     std::vector<int> soldTickets;
     std::vector<int> returnedTickets;
+
+    double computePenaltyRate(int daysBefore) const;
 
 public:
     Cashier(const std::string& id, RailwayConnectionDatabase* db, IClock* clk);
