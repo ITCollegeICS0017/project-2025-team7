@@ -1,4 +1,5 @@
 #pragma once
+
 #include "Employee.hpp"
 #include "RailwayConnectionDatabase.hpp"
 #include "Types.hpp"
@@ -9,17 +10,21 @@ class Cashier : public Employee {
 private:
     RailwayConnectionDatabase* db;
     IClock* clock;
+
     std::vector<int> soldTickets;
     std::vector<int> returnedTickets;
+
+    double totalSales{0.0};
+    double totalRefunds{0.0};
 
     double computePenaltyRate(int daysBefore) const;
 
 public:
     Cashier(const std::string& id, RailwayConnectionDatabase* db, IClock* clk);
 
-    void searchTickets(const std::string& dest);
+    void searchTickets(const std::string& destination, CoachType* coachFilter = nullptr, std::time_t* dateFilter = nullptr);
     bool blockTicket(int ticketId);
-    bool sellTicket(int ticketId, const Passenger& p);
-    bool returnTicket(int ticketId, std::time_t travelDate);
-    void generateReport() const;
+    bool sellTicket(int ticketId, const Passenger& passenger);
+    bool returnTicket(int ticketId);
+    void generateDailyReport() const;
 };
